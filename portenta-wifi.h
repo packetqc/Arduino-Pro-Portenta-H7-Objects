@@ -1,4 +1,5 @@
-#pragma once
+#ifndef MPWL_H
+#define MPWL_H
 
 #include <WiFi.h>
 
@@ -12,7 +13,7 @@ class MPWL {
     int status   = WL_IDLE_STATUS;
     
     WiFiServer *server;
-    WiFiClient *client;
+    WiFiClient *clientWiFi;
 
     String WebServerConnect = "192.168.3.1";
       
@@ -21,8 +22,6 @@ class MPWL {
     bool statusDataEncryption;
 
     MPWL() = default; // Make constructor private  
-
-    void PrintWiFiStatus();
 
   public:
     //SINGLETON
@@ -37,9 +36,13 @@ class MPWL {
     bool Connect();
     bool Interact();
 
+    void PrintWiFiStatus();
+
     bool StatusWL();
     bool StatusConnection();
     bool StatusDataEncryption();
 };
 
 extern MPWL &mpWL;
+
+#endif

@@ -2,9 +2,7 @@
 #include "portenta-monitor.h"
 
 bool MPWL::Connect() {
-  bool retour = true;
-  
-  client = new WiFiClient;
+  bool retour = true;   
 
   // check for the WiFi module:
   if (WiFi.status() == WL_NO_SHIELD) {
@@ -16,20 +14,22 @@ bool MPWL::Connect() {
 
   if(retour) {
     // attempt to connect to Wifi network:
-    while (status != WL_CONNECTED) {
+    while (WiFi.status() != WL_CONNECTED) {
       mpMON.Debug("Attempting to connect to SSID WiFi: "+ssid);
 
       // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
       status = WiFi.begin(ssid.c_str(), pass.c_str());
   
       // wait 3 seconds for connection:
-      delay(3000);
+      if(!status) {
+        delay(3000);
+      }
     }
     mpMON.Debug("Connected to wifi");
 
     statusWL = true;
 
-    PrintWiFiStatus();
+    // PrintWiFiStatus();
   }
   
   return retour;
@@ -37,23 +37,29 @@ bool MPWL::Connect() {
 
 bool MPWL::Interact() {
   bool retour = false;
+  
+  if(!StatusWL()) {
+    Connect();
+  }
 
-  PrintWiFiStatus();
+  clientWiFi = new WiFiClient;
 
-  mpMON.Debug("\nStarting connection to server...");
+  // PrintWiFiStatus();
+
+  mpMON.Debug("Starting connection to server...");
   
   // if you get a connection, report back via serial:
-  if (client->connect(WebServerConnect.c_str(), 80)) {
+  if (clientWiFi->connect(WebServerConnect.c_str(), 80)) {
     mpMON.Debug("connected to server");
     retour = true;
     
     // Make a HTTP request:
-    client->println("GET /index.html HTTP/1.1");
-    client->print("Host: ");
-    client->println(WebServerConnect.c_str());
-    client->println("Connection: close");
-    client->println();
-    client->println();
+    clientWiFi->println("GET /index.html HTTP/1.1");
+    clientWiFi->print("Host: ");
+    clientWiFi->println(WebServerConnect.c_str());
+    clientWiFi->println("Connection: close");
+    clientWiFi->println();
+    clientWiFi->println();
 
     // delay(3000);
 
@@ -61,25 +67,27 @@ bool MPWL::Interact() {
     // from the server, read them and print them:
     int retry = 0;
     do { 
-      if(!client->available()) {
+      if(!clientWiFi->available()) {
         mpMON.Debug("no response available from request");
         retry++;
-        retour = false;
+        // retour = false;
       }
       else {
-        break;
+        // mpMON.Debug("response available from request");
+        // break;
+        retry = 3;
       }
 
       if(retry<3) {
         delay(1000);
       }
-      else {
-        retour = false;
-        break;
-      }      
-    } while (!client->available());
+      // else {
+      //   retour = false;
+      //   // break;
+      // }      
+    } while (retry<3);
 
-    if(client->available()) {
+    if(clientWiFi->available()) {
       retour = true;
       mpMON.Debug("response available from request");
       
@@ -87,27 +95,28 @@ bool MPWL::Interact() {
 
     if(retour) {
       int responseCount = 0;
-      while (client->available()) {
-        char c = client->read();
+      while (clientWiFi->available()) {
+        char c = clientWiFi->read();
         // Serial.write(c);
         responseCount++;
       }
-      mpMON.Debug("received number of characters: "+responseCount);
+      mpMON.Debug("received number of characters: ");
+      mpMON.Debug(String(responseCount));
     }
   }
-
-  // if the server's disconnected, stop the client:
-  if (!client->connected()) {
-    // statusWL = false;
-    // mpMON.Debug("client not connected.");
-    
-    mpMON.Debug("disconnecting from server.");
-    // client->flush();
-    client->stop();
+  else {
+    mpMON.Debug("cannot connect to server---");
+    retour = false;
   }
-//  else {
-//    retour = false;
-//  }
+
+  // if the server's disconnected, stop the clientWiFi:
+  // if (!clientWiFi->connected()) {   
+  //   mpMON.Debug("disconnecting from Web server.");
+  //   mpMON.Debug("stopping Web client");
+  //   clientWiFi->flush();
+  //   clientWiFi->stop();
+  //   clientWiFi = NULL;
+  // }
   
   return retour;
 }
@@ -135,12 +144,12 @@ bool MPWL::Init() {
     }
     else {
       mpMON.Debug("Access point created");
-      PrintWiFiStatus();
+      // PrintWiFiStatus();
     }
   }
 
   if(retour) {
-    delay(10000);
+    // delay(10000);
 
     mpMON.Debug("Starting Web server...");
     server->begin();
@@ -153,20 +162,21 @@ bool MPWL::Init() {
 void MPWL::PrintWiFiStatus() {
   // print the SSID of the network you're attached to:
   
-  mpMON.Debug("SSID: ");
-  mpMON.Debug(String(WiFi.SSID()));
+  mpMON.Debug("SSID: "+String(WiFi.SSID()));
+  // mpMON.Debug(WiFi.SSID());
 
   // print your WiFi shield's IP address:
   IPAddress ip = WiFi.localIP();
-  mpMON.Debug("IP Address: "+ip);
+  mpMON.Debug("IP Address: "+String(ip));
+  // mpMON.Debug(String(ip.c_str()));
 
   // print the received signal strength:
   long rssi = WiFi.RSSI();
-  mpMON.Debug("signal strength (RSSI): "+String(rssi)+" dBm");
+  mpMON.Debug("Signal strength (RSSI): "+String(rssi)+" dBm");
   
   // print where to go in a browser:
-  mpMON.Debug("To see this page in action, open a browser to http://");
-  mpMON.Debug(WebServerConnect.c_str());  
+  // mpMON.Debug("To see this page in action, open a browser to http://");
+  // mpMON.Debug(WebServerConnect.c_str());  
   
 }
 
@@ -208,7 +218,7 @@ bool MPWL::Run() {
             webClient.println("HTTP/1.1 200 OK");
             webClient.println("Content-type:text/html");
             webClient.println();
-
+            webClient.println();
             // the content of the HTTP response follows the header:
             webClient.print("<html><head>");
             webClient.print("<style>");
@@ -261,7 +271,7 @@ bool MPWL::Run() {
     
     // close the connection:
     webClient.stop();
-    mpMON.Debug("client disconnected");
+    mpMON.Debug("WiFi Web client disconnected");
   }
 
   return retour;
@@ -270,7 +280,14 @@ bool MPWL::Run() {
 //===================================================================================================
 // STATUS
 //===================================================================================================
-bool MPWL::StatusWL() {
+bool MPWL::StatusWL() {  
+  if(WiFi.status() == WL_CONNECTED) {
+    statusWL = true;
+  }
+  else {
+    statusWL = false;
+  }
+
   return statusWL;
 }
 

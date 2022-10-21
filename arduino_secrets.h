@@ -1,2 +1,2 @@
-#define SECRET_SSID "PortentaAccessPoint"
-#define SECRET_PASS "123Qwerty"
+#define SECRET_SSID "156 MATTE HONEY 1"
+#define SECRET_PASS "GuRGFRxW546$r%@$"

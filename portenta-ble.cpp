@@ -1,4 +1,4 @@
-#include "portenta-thread.h"
+#include "portenta-ble.h"
 #include "portenta-monitor.h"
 
 #include <Arduino.h>
@@ -105,7 +105,7 @@ void MPBLE::begin() {
 
   digitalWrite(LED_BUILTIN, LOW);
 
-  if(!Init("LED-Portenta-01", "19b10000-e8f2-537e-4f6c-d104768a1214")) {
+  if(!Init("156 MATTE HONEY 1", "19b10000-e8f2-537e-4f6c-d104768a1214")) {
     mpMON.Debug("BLE Init failed! End.");
     while(1);
   }
