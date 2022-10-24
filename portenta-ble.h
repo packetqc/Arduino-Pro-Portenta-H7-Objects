@@ -7,7 +7,8 @@
 //===================================================================================================
 class MPBLE {
   private:
-    String bleadvString = "156 MATTE HONEY";
+    // String bleadvString = "156 MATTE HONEY";
+    String bleadvString = "HONEYNET DO NOT CONNECT";
     String bleadvUUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
     String caracteristic_1_UUDI = "19b10001-e8f2-537e-4f6c-d104768a1214";
 

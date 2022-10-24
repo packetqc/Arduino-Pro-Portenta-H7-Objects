@@ -14,8 +14,8 @@
 // - BLE CLIENT, button pressed communication to an object/device
 // - WIFI AP WEB SERVER
 
-// bool runAsServerObject = true; // Server / Object type
-bool runAsServerObject = false; // Client / Central type
+bool runAsServerObject = true; // Server / Object type
+// bool runAsServerObject = false; // Client / Central type
 
 //===================================================================================================
 // ASSETS
