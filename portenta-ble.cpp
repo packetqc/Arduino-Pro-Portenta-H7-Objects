@@ -104,7 +104,7 @@ bool MPBLE::Interact() {
     mpMON.Debug("BLE Client listener not connected with server object ---");
     retour = false;
   }
-  else {// while(listener.connected()) {    
+  else {  // while(listener.connected()) {    
     if (oldButtonState != buttonState) {
       // button changed
       oldButtonState = buttonState;
@@ -175,14 +175,14 @@ bool MPBLE::begin() {
 void MPBLE::run() {
   if( ListenConnection()) { 
     if( IncomingConnection()) {
-       mpMON.Debug("BLE Server processing incoming connection on connected device completed");
+      //  mpMON.Debug("BLE Server processing incoming connection on connected device completed");
     }
     else {
       mpMON.Debug("BLE Server failure processing incoming connection ---");
     }
   }
   else {
-    mpMON.Debug("BLE Server have no device connected");
+    // mpMON.Debug("BLE Server have no device connected");
   }
 }
 
@@ -257,11 +257,11 @@ bool MPBLE::ListenConnection() {
   listener = BLE.central();
   
   if( !listener ) {
-    mpMON.Debug("BLE Server have no central/parent device connected");
+    // mpMON.Debug("BLE Server have no central/parent device connected");
     retour = false;
   }
   else {
-    mpMON.Debug("BLE Server have a central/parent device connected: "+GetIncomingAddress());
+    // mpMON.Debug("BLE Server have a central/parent device connected: "+GetIncomingAddress());
     statusConnection = true;
   }
 
@@ -278,7 +278,8 @@ bool MPBLE::IncomingConnection() {
     // If the remote device wrote to the characteristic,
     // Use the value to control the LED:
     if (switchCharacteristic->written()) {
-      mpMON.Debug("BLE Server have a request to process");
+      mpMON.Debug("BLE Server have a request to process from "+GetIncomingAddress());
+      mpMON.Debug("BLE Server processing received value: "+String(switchCharacteristic->value()));
 
       if (switchCharacteristic->value()) {   // Any value other than 0
         //          mpMON.Debug("LED on");
@@ -289,7 +290,7 @@ bool MPBLE::IncomingConnection() {
       }
     }
     else {
-      mpMON.Debug("BLE Server have a no request to process");
+      // mpMON.Debug("BLE Server have a no request to process");
       statusConnection = false;
     }
   }

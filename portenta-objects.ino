@@ -14,8 +14,8 @@
 // - BLE CLIENT, button pressed communication to an object/device
 // - WIFI AP WEB SERVER
 
-// bool runAsServerObject = true; // Server / Object type
-bool runAsServerObject = false; // Client / Central type
+bool runAsServerObject = true; // Server / Object type
+// bool runAsServerObject = false; // Client / Central type
 
 //===================================================================================================
 // ASSETS
@@ -123,7 +123,7 @@ void mpBLE_client_thread_callback() {
         mpMON.Debug("BLE Client cannot interact with server: not started and connected. ---");        
       }
 
-      bleStarted = mpBLE.Disconnect();
+      bleStarted = mpBLE.Disconnect() == true ? false:true;
 
       delay(1000);
       // yield();
