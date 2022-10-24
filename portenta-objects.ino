@@ -1,15 +1,37 @@
 // #ifdef CORE_CM7
 
-#include "portenta-ble.h"
-#include "portenta-wifi.h"
-#include "portenta-monitor.h"
-
 #include "mbed.h"
 #include "Arduino.h"
 
-bool runAsServerObject = true; // Server / Object
-// bool runAsServerObject = false; // Client / Central
+//===================================================================================================
+// TYPE OF DEPLOYMENT: OBJECT OR CENTRAL/PARENT
+//===================================================================================================
+// OBJECT TYPE
+// - BLE SERVER ADVERTISING
+// - WIFI CLIENT WEB REQUEST
 
+// CENTRAL/PARENT TYPE
+// - BLE CLIENT, button pressed communication to an object/device
+// - WIFI AP WEB SERVER
+
+// bool runAsServerObject = true; // Server / Object type
+bool runAsServerObject = false; // Client / Central type
+
+//===================================================================================================
+// ASSETS
+//===================================================================================================
+#include "portenta-ble.h"
+// mpBLE singleton of class ready
+
+#include "portenta-wifi.h"
+// mpWL singleton of class ready
+
+#include "portenta-monitor.h"
+// mpMON singleton of class ready with Morse Code and LED capabilities
+
+//===================================================================================================
+// MULTI-THREAD DEFINITIONS
+//===================================================================================================
 using namespace mbed;
 using namespace rtos;
 
@@ -24,17 +46,19 @@ bool bleStarted = false;
 Thread mpWL_server_thread;
 bool wlServiceStarted = false;
 
-
 Thread mpWL_client_thread;
 bool wlClientStarted = false;
+
+
+//===================================================================================================
+// SETUP AND THREAD STARTUPs  (watchdogs)
+//===================================================================================================
+void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 
 void setup() {   
   mpMON.Init();  
   mpMON.Debug("Message 1");
-  
-    // Serial.begin(115200);
-//  bootM4();
-//  delay(10);
+  mpPERF.Run();  
 
   if( runAsServerObject ) { //Server Object
     mpWL_client_thread.start(callback(mpWL_client_thread_callback));
@@ -44,69 +68,100 @@ void setup() {
     mpWL_server_thread.start(callback(mpWL_server_thread_callback));
     mpBLE_client_thread.start(callback(mpBLE_client_thread_callback));
   }
-
-  mpPERF.Run();
-  
 }
 
+//===================================================================================================
+// WIFI CLIENT THREAD (watchdog)
+//===================================================================================================
 void mpWL_client_thread_callback() {
   while(runit) {
-    if(!mpWL.StatusWL()) {
-      wlClientStarted = mpWL.Connect();
+    if(mpWL.Connect()) {
     }
+    else {}
 
     if(mpWL.StatusWL()) {
-      if(!mpWL.Interact()) {
-        mpWL.PrintWiFiStatus();
-        wlClientStarted = mpWL.Connect();        
-        mpWL.PrintWiFiStatus();
-      }      
-    }
+      mpWL.Interact();
+      mpWL.Disconnect();
+    }  
 
-    yield();
     delay(5000);
   }
 }
 
-void mpWL_server_thread_callback() {
-  while(runit) {
-    if(!wlServiceStarted) {
-      wlServiceStarted = mpWL.Init();
-    }
-  
-    mpWL.Run();
-    yield();
+//===================================================================================================
+// WIFI SERVER THREAD (watchdog)
+//===================================================================================================
+void mpWL_server_thread_callback() {  
+  if(!wlServiceStarted) {
+    wlServiceStarted = mpWL.Init();
   }
+
+  mpWL.Run();
 }
 
+//===================================================================================================
+// BLE CLIENT THREAD (watchdog)
+//===================================================================================================
 void mpBLE_client_thread_callback() {
   while(runit) {
       if(!bleStarted) {
           BLE.begin();
-          bleStarted = true;
-          mpMON.Debug("BLE started.");
+          if(!mpBLE.Connect()) {
+            mpMON.Debug("BLE Client not started. ---");
+            bleStarted = false;
+          }
+          else {
+            mpMON.Debug("BLE Client started.");
+            bleStarted = true;
+          }
+      }
+      
+      if(bleStarted) {
+        mpBLE.Interact();
+      }
+      else {
+        mpMON.Debug("BLE Client cannot interact with server: not started and connected. ---");        
       }
 
-      mpBLE.Connect();
+      bleStarted = mpBLE.Disconnect();
+
       delay(1000);
-      yield();
+      // yield();
   }
 }
 
+//===================================================================================================
+// BLE SERVER THREAD (watchdog)
+//===================================================================================================
 void mpBLE_server_thread_callback() {
   while(runit) {
-    if(!bleServiceStarted) {
-      mpBLE.begin();
-      bleStarted = true;
-      bleServiceStarted = true;
+    if(!bleServiceStarted) {            
+      if(BLE.begin()) {
+        bleServiceStarted = mpBLE.begin();    
+        if(!bleServiceStarted) {
+          mpMON.Debug("BLE Server not started. ---");
+        }
+        else {
+          mpMON.Debug("BLE Server started.");
+        }
+      }
+      else {
+        mpMON.Debug("BLE Server cannot begin BLE.begin ---");
+      }
     }
-  
-    mpBLE.run();
+    else { 
+      mpBLE.run();
+    }
+    
     delay(1000);
-    yield();
+    // yield();
   }
 }
 
+
+//===================================================================================================
+// MAIN LOOP, THREAD WATCH AND MGMT
+//===================================================================================================
 void loop() {
 //  delay(10);
     mpMON.MorseCode("sos sos");          

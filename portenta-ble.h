@@ -2,15 +2,26 @@
 
 #include <ArduinoBLE.h>
 
+//===================================================================================================
+// 
+//===================================================================================================
 class MPBLE {
   private:
+    String bleadvString = "156 MATTE HONEY";
+    String bleadvUUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    String caracteristic_1_UUDI = "19b10001-e8f2-537e-4f6c-d104768a1214";
+
     // variables for button
     const int buttonPin = 2;
     int oldButtonState = LOW;
+    int buttonState = HIGH;
 
     BLEByteCharacteristic *switchCharacteristic;
     BLEService *bleService;
     BLEDevice listener;
+
+    BLECharacteristic ledCharacteristic;
+
     String bleUuid;
     String bleName;
 
@@ -20,15 +31,13 @@ class MPBLE {
 
     MPBLE() = default; // Make constructor private  
 
-    bool Init(String name, const char* uuid);
+    bool Init(String name, String uuid);
     bool SetCharacteristic(bool read, bool write, String setUuid);
     bool Start();
 
     bool ListenConnection();
     bool IncomingConnection();
     String GetIncomingAddress();
-
-    void Interact(BLEDevice peripheral);
 
   public:
     //SINGLETON
@@ -37,10 +46,12 @@ class MPBLE {
     MPBLE &operator=(const MPBLE &) = delete;
 
   public:
-    void begin();
+    bool begin();
     void run();
     bool Connect();
-    
+    bool Disconnect();
+    bool Interact();
+
     bool StatusBLE();
     bool StatusConnection();
     bool StatusDataEncryption();

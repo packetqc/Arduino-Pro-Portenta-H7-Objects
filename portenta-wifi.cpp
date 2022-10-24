@@ -1,8 +1,31 @@
 #include "portenta-wifi.h"
 #include "portenta-monitor.h"
 
+// #define WEB_CLIENT_WAIT 30
+unsigned long lastConnectionTime = 0;            // last time you connected to the server, in milliseconds
+const unsigned long waitTime = 10L * 1000L; // delay between updates, in milliseconds
+
+//===================================================================================================
+// CLIENT
+//===================================================================================================
+bool MPWL::Disconnect() {
+  bool retour = false;   
+
+  // webclient->stop();
+  webclient = NULL;
+
+  mpMON.Debug("WiFi client is disconnecting now...");  
+  WiFi.end();
+  retour = true;
+  mpMON.Debug("WiFi client disconnected, end, as expected");  
+  StatusWL();
+
+  return retour;
+}
+
 bool MPWL::Connect() {
   bool retour = true;   
+  int retry = 0;
 
   // check for the WiFi module:
   if (WiFi.status() == WL_NO_SHIELD) {
@@ -20,16 +43,30 @@ bool MPWL::Connect() {
       // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
       status = WiFi.begin(ssid.c_str(), pass.c_str());
   
+      if(!StatusWL()) {
+        retry++;        
+      }
+      else {
+        retry = 0;
+      }
+
+      if(retry > 5) {
+        retour = false;
+        mpMON.Debug("Failed to connected multiple times, resetting the device...bye now...");
+        // resetFunc(); //call reset
+        break;
+      }
+
       // wait 3 seconds for connection:
       if(!status) {
         delay(3000);
       }
-    }
-    mpMON.Debug("Connected to wifi");
-
-    statusWL = true;
-
-    // PrintWiFiStatus();
+      else {
+        mpMON.Debug("WiFi client connected to access point");        
+        StatusWL();
+        webclient = new WiFiClient;
+      }
+    }    
   }
   
   return retour;
@@ -37,90 +74,65 @@ bool MPWL::Connect() {
 
 bool MPWL::Interact() {
   bool retour = false;
-  
-  if(!StatusWL()) {
-    Connect();
-  }
+  int retry = 1;
+  int responseCount = 0;
 
-  clientWiFi = new WiFiClient;
-
-  // PrintWiFiStatus();
-
-  mpMON.Debug("Starting connection to server...");
+  mpMON.Debug("Starting connection to Web server...");
   
   // if you get a connection, report back via serial:
-  if (clientWiFi->connect(WebServerConnect.c_str(), 80)) {
-    mpMON.Debug("connected to server");
-    retour = true;
+  if (webclient->connect(WebServerConnect.c_str(), 80)) {
+    lastConnectionTime = millis();
+
+    mpMON.Debug("connected to Web server");
+    mpMON.Debug("sending request to Web server...");
     
     // Make a HTTP request:
-    clientWiFi->println("GET /index.html HTTP/1.1");
-    clientWiFi->print("Host: ");
-    clientWiFi->println(WebServerConnect.c_str());
-    clientWiFi->println("Connection: close");
-    clientWiFi->println();
-    clientWiFi->println();
+    webclient->println("GET /index.html HTTP/1.1");
+    webclient->print("Host: ");
+    webclient->println(WebServerConnect.c_str());
+    webclient->println("Connection: close");
+    webclient->println();
 
-    // delay(3000);
+    while(webclient->connected() || webclient->available()) {
+      if( webclient->available()) {
+        retour = true;
 
-    // if there are incoming bytes available
-    // from the server, read them and print them:
-    int retry = 0;
-    do { 
-      if(!clientWiFi->available()) {
-        mpMON.Debug("no response available from request");
-        retry++;
-        // retour = false;
+        char c = webclient->read();
+        Serial.write(c);
+        responseCount++;
       }
-      else {
-        // mpMON.Debug("response available from request");
-        // break;
-        retry = 3;
-      }
-
-      if(retry<3) {
-        delay(1000);
-      }
-      // else {
-      //   retour = false;
-      //   // break;
-      // }      
-    } while (retry<3);
-
-    if(clientWiFi->available()) {
-      retour = true;
-      mpMON.Debug("response available from request");
       
+      if (millis() - lastConnectionTime > waitTime) {
+        retour = false;
+        mpMON.Debug("connected to Web server but no response available in wait time threshold from Web server for request ---");
+        break;
+      }
     }
 
     if(retour) {
-      int responseCount = 0;
-      while (clientWiFi->available()) {
-        char c = clientWiFi->read();
-        // Serial.write(c);
-        responseCount++;
-      }
-      mpMON.Debug("received number of characters: ");
-      mpMON.Debug(String(responseCount));
+      mpMON.Debug("response available from Web request");      
+      mpMON.Debug("received number of characters from Web response: "+String(responseCount));      
+      mpMON.Debug("Web request completed");
+    }
+    else {
+      mpMON.Debug("connected to Web server but no response available from Web server for request ---");
     }
   }
   else {
-    mpMON.Debug("cannot connect to server---");
+    mpMON.Debug("cannot connect to server for Web request ---");
     retour = false;
   }
 
-  // if the server's disconnected, stop the clientWiFi:
-  // if (!clientWiFi->connected()) {   
-  //   mpMON.Debug("disconnecting from Web server.");
-  //   mpMON.Debug("stopping Web client");
-  //   clientWiFi->flush();
-  //   clientWiFi->stop();
-  //   clientWiFi = NULL;
-  // }
-  
+  mpMON.Debug("Web client is stopping now...");    
+  webclient->stop();
+  mpMON.Debug("Web client stopped as expected");    
+
   return retour;
 }
 
+//===================================================================================================
+// SERVER
+//===================================================================================================
 bool MPWL::Init() {
   bool retour = true;
   
@@ -159,6 +171,88 @@ bool MPWL::Init() {
   return retour;
 }
 
+void MPWL::Run() {
+
+  while(true) {  
+      // compare the previous status to the current status
+    if (status != WiFi.status()) {
+      // it has changed update the variable
+      status = WiFi.status();
+
+      if (status == WL_AP_CONNECTED) {
+        // a device has connected to the AP
+        mpMON.Debug("Device connected to AP");
+      } else {
+        // a device has disconnected from the AP, and we are back in listening mode
+        mpMON.Debug("Device disconnected from AP");
+      }
+    }
+
+    WiFiClient webrequest = server->available();   // listen for incoming clients
+
+    if (webrequest) {                             // if you get a client,
+      mpMON.Debug("new Web client request");           // print a message out the serial port
+      String currentLine = "";                // make a String to hold incoming data from the client
+      int requestreceived = 0;
+
+      delay(500);
+      while (webrequest.available()) {
+          char c = webrequest.read();             // read a byte, then
+          Serial.write(c);                  // print it out the serial monitor  
+          requestreceived++;
+                           
+          if (c == '\n') {                    // if the byte is a newline character
+            // that's the end of the client HTTP request, so send a response:
+            if (currentLine.length() == 0) {
+              // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+              // and a content-type so the client knows what's coming, then a blank line:
+              webrequest.println("HTTP/1.1 200 OK");
+              webrequest.println("CONTENT-TYPE:text/html");
+              webrequest.println();
+
+              // the content of the HTTP response follows the header:
+              webrequest.println("<HTML>");
+              webrequest.println("<HEAD>");
+              webrequest.println("</HEAD>");
+              webrequest.println("<BODY>");
+              webrequest.println("</BODY>");
+              webrequest.println("</HTML>");
+
+              // break out of the while loop:
+              break;
+            } else {      // if you got a newline, then clear currentLine:
+              currentLine = "";
+            }
+          } else if (c != '\r') {    // if you got anything else but a carriage return character,
+            currentLine += c;      // add it to the end of the currentLine
+          }
+      }
+
+      mpMON.Debug("Number of characters received from Web request: "+String(requestreceived));
+      
+      if(!webrequest.connected()) {
+        mpMON.Debug("WiFi Web client is connected, stopping...");      
+        webrequest.stop();   
+        mpMON.Debug("WiFi Web client stopped as expected");
+      }
+    }     
+  }
+}
+
+//===================================================================================================
+// STATUS
+//===================================================================================================
+bool MPWL::StatusWL() {  
+  if(WiFi.status() == WL_CONNECTED) {
+    statusWL = true;
+  }
+  else {
+    statusWL = false;
+  }
+
+  return statusWL;
+}
+
 void MPWL::PrintWiFiStatus() {
   // print the SSID of the network you're attached to:
   
@@ -179,118 +273,6 @@ void MPWL::PrintWiFiStatus() {
   // mpMON.Debug(WebServerConnect.c_str());  
   
 }
-
-bool MPWL::Run() {
-  bool retour = true;
-
-    // compare the previous status to the current status
-  if (status != WiFi.status()) {
-    // it has changed update the variable
-    status = WiFi.status();
-
-    if (status == WL_AP_CONNECTED) {
-      // a device has connected to the AP
-      mpMON.Debug("Device connected to AP");
-    } else {
-      // a device has disconnected from the AP, and we are back in listening mode
-      mpMON.Debug("Device disconnected from AP");
-    }
-  }
-
-  WiFiClient webClient = server->available();   // listen for incoming clients
-
-  if (webClient) {                             // if you get a client,
-    mpMON.Debug("new client request");           // print a message out the serial port
-    String currentLine = "";                // make a String to hold incoming data from the client
-
-    while (webClient.connected()) {            // loop while the client's connected
-
-      if (webClient.available()) {             // if there's bytes to read from the client,
-        char c = webClient.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
-        if (c == '\n') {                    // if the byte is a newline character
-
-          // if the current line is blank, you got two newline characters in a row.
-          // that's the end of the client HTTP request, so send a response:
-          if (currentLine.length() == 0) {
-            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            // and a content-type so the client knows what's coming, then a blank line:
-            webClient.println("HTTP/1.1 200 OK");
-            webClient.println("Content-type:text/html");
-            webClient.println();
-            webClient.println();
-            // the content of the HTTP response follows the header:
-            webClient.print("<html><head>");
-            webClient.print("<style>");
-            webClient.print("* { font-family: sans-serif;}");
-            webClient.print("body { padding: 2em; font-size: 2em; text-align: center;}");
-            webClient.print("a { -webkit-appearance: button;-moz-appearance: button;appearance: button;text-decoration: none;color: initial; padding: 25px;} #red{color:red;} #green{color:green;} #blue{color:blue;}");
-            webClient.print("</style></head>");
-            webClient.print("<body><h1> LED CONTROLS </h1>");
-            webClient.print("<h2><span id=\"red\">RED </span> LED </h2>");
-            webClient.print("<a href=\"/Hr\">ON</a> <a href=\"/Lr\">OFF</a>");
-            webClient.print("<h2> <span id=\"green\">GREEN</span> LED </h2>");
-            webClient.print("<a href=\"/Hg\">ON</a> <a href=\"/Lg\">OFF</a>");
-            webClient.print("<h2> <span id=\"blue\">BLUE</span> LED </h2>");
-            webClient.print("<a href=\"/Hb\">ON</a> <a href=\"/Lb\">OFF</a>");
-            webClient.print("</body></html>");
-
-            // The HTTP response ends with another blank line:
-            webClient.println();
-            // break out of the while loop:
-            break;
-          } else {      // if you got a newline, then clear currentLine:
-            currentLine = "";
-          }
-        } else if (c != '\r') {    // if you got anything else but a carriage return character,
-          currentLine += c;      // add it to the end of the currentLine
-        }
-
-        // Check to see if the client request was "GET /H" or "GET /L":
-        if (currentLine.endsWith("GET /Hr")) {
-          digitalWrite(LEDR, LOW);               // GET /Hr turns the Red LED on
-        }
-        if (currentLine.endsWith("GET /Lr")) {
-          digitalWrite(LEDR, HIGH);                // GET /Lr turns the Red LED off
-        }
-        if (currentLine.endsWith("GET /Hg")) {
-          digitalWrite(LEDG, LOW);                // GET /Hg turns the Green LED on
-        }
-        if (currentLine.endsWith("GET /Lg")) {
-          digitalWrite(LEDG, HIGH);                // GET /Hg turns the Green LED on
-        }
-        if (currentLine.endsWith("GET /Hb")) {
-          digitalWrite(LEDB, LOW);                // GET /Hg turns the Green LED on
-        }
-        if (currentLine.endsWith("GET /Lb")) {
-          digitalWrite(LEDB, HIGH);                // GET /Hg turns the Green LED on
-        }
-
-      }
-    }
-    
-    // close the connection:
-    webClient.stop();
-    mpMON.Debug("WiFi Web client disconnected");
-  }
-
-  return retour;
-}
-
-//===================================================================================================
-// STATUS
-//===================================================================================================
-bool MPWL::StatusWL() {  
-  if(WiFi.status() == WL_CONNECTED) {
-    statusWL = true;
-  }
-  else {
-    statusWL = false;
-  }
-
-  return statusWL;
-}
-
 //===================================================================================================
 // SINGLETON
 //===================================================================================================

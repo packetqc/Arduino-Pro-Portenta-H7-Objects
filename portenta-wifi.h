@@ -5,6 +5,9 @@
 
 #include "arduino_secrets.h"
 
+//===================================================================================================
+// WIFI OBJECT: CLIENT OR SERVER
+//===================================================================================================
 class MPWL {
   private:
     String ssid  = SECRET_SSID;
@@ -13,7 +16,7 @@ class MPWL {
     int status   = WL_IDLE_STATUS;
     
     WiFiServer *server;
-    WiFiClient *clientWiFi;
+    WiFiClient *webclient;
 
     String WebServerConnect = "192.168.3.1";
       
@@ -30,14 +33,17 @@ class MPWL {
     MPWL &operator=(const MPWL &) = delete;
 
   public:    
+    //SERVER
     bool Init();
-    bool Run();
+    void Run();
 
+    //CLIENT
     bool Connect();
+    bool Disconnect();
     bool Interact();
 
+    //STATUS
     void PrintWiFiStatus();
-
     bool StatusWL();
     bool StatusConnection();
     bool StatusDataEncryption();
