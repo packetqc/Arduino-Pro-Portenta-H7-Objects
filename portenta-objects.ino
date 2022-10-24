@@ -14,8 +14,8 @@
 // - BLE CLIENT, button pressed communication to an object/device
 // - WIFI AP WEB SERVER
 
-bool runAsServerObject = true; // Server / Object type
-// bool runAsServerObject = false; // Client / Central type
+// bool runAsServerObject = true; // Server / Object type
+bool runAsServerObject = false; // Client / Central type
 
 //===================================================================================================
 // ASSETS
@@ -37,16 +37,18 @@ using namespace rtos;
 
 bool runit = true;
 
-Thread mpBLE_server_thread;
+Thread Performance_worker(osPriorityNormal,OS_STACK_SIZE,NULL,"PERF-STATS");
+
+Thread mpBLE_server_thread(osPriorityNormal,OS_STACK_SIZE,NULL,"BLE-SERVER");
 bool bleServiceStarted = false;
 
-Thread mpBLE_client_thread;
+Thread mpBLE_client_thread(osPriorityNormal,OS_STACK_SIZE,NULL,"BLE-CLIENT");
 bool bleStarted = false;
 
-Thread mpWL_server_thread;
+Thread mpWL_server_thread(osPriorityNormal,OS_STACK_SIZE,NULL,"WIFI-SERVER");
 bool wlServiceStarted = false;
 
-Thread mpWL_client_thread;
+Thread mpWL_client_thread(osPriorityNormal,OS_STACK_SIZE,NULL,"WIFI-CLIENT");
 bool wlClientStarted = false;
 
 
@@ -58,7 +60,9 @@ void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 void setup() {   
   mpMON.Init();  
   mpMON.Debug("Message 1");
-  mpPERF.Run();  
+  
+  // mpPERF.Run();  
+  Performance_worker.start(callback(mpPERF.Run_callback));
 
   if( runAsServerObject ) { //Server Object
     mpWL_client_thread.start(callback(mpWL_client_thread_callback));

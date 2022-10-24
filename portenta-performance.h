@@ -21,12 +21,14 @@ class Performance {
         static Performance &getInstance();    // Accessor for singleton instance
         Performance(const Performance &) = delete;  // no copying
         Performance &operator=(const Performance &) = delete;
+        
+        //THREAD START CALLBACK
+        static void Run_callback();
 
 
     private:
         Performance() = default;  // Make constructor private  
-        Thread Performance_worker;
-        static void Run_callback();
+        // Thread Performance_worker;
 
     public:
         bool runit = true;
@@ -35,6 +37,7 @@ class Performance {
         void Run(void);
         void HeapPerformance(void);
         void StackPerformance(void);
+        void ThreadPerformance(void);
         void CpuPerformance(void);
 };
 

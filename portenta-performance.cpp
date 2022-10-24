@@ -40,6 +40,32 @@ void Performance::HeapPerformance(void) {
 }
 
 //===================================================================================================
+// THREAD PERFORMANCE
+//===================================================================================================
+void Performance::ThreadPerformance(void)
+{
+    mpMON.Debug(String("[Threads stats]"));
+
+    int cnt = osThreadGetCount();
+    mbed_stats_thread_t *stats = (mbed_stats_thread_t*) malloc(cnt * sizeof(mbed_stats_thread_t));
+
+    cnt = mbed_stats_thread_get_each(stats, cnt);
+    for (int i = 0; i < cnt; i++) {
+        mpMON.Debug(
+            String("Thread: 0x")+stats[i].id+
+            String(" Name: ")+stats[i].name+            
+            String(" State: ")+stats[i].state+
+            String(" Priority: ")+stats[i].priority+
+            String(" Stack size: ")+stats[i].stack_size+
+            String(" Free space: ")+stats[i].stack_space
+        );             
+    }
+    mpMON.Debug(String());
+
+    free(stats);
+}
+
+//===================================================================================================
 // STACK PERFORMANCE
 //===================================================================================================
 void Performance::StackPerformance(void)
@@ -54,7 +80,7 @@ void Performance::StackPerformance(void)
         mpMON.Debug(
             String("Thread: 0x")+stats[i].thread_id+
             String(" Stack size: ")+stats[i].reserved_size+
-            String(" Max stack: ")+stats[i].max_size
+            String(" Max used: ")+stats[i].max_size
         );             
     }
     mpMON.Debug(String());
@@ -86,7 +112,6 @@ void Performance::CpuPerformance(void) {
 //===================================================================================================
 void Performance::Run(void) {
     runit = true;    
-    Performance_worker.start(callback(Run_callback));
 }
 
 //===================================================================================================
@@ -102,6 +127,7 @@ Performance &mpPERF = mpPERF.getInstance();
 //===================================================================================================
 // WORKER
 //===================================================================================================
+
 void Performance::Run_callback() {
     while (mpPERF.runit)
     {
@@ -109,6 +135,7 @@ void Performance::Run_callback() {
         mpPERF.CpuPerformance();
         mpPERF.StackPerformance();
         mpPERF.HeapPerformance();  
+        mpPERF.ThreadPerformance();
         mpMON.HoldItForWhile(false);  
         
         #if MBED_MAJOR_VERSION == 2
